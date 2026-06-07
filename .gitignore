@@ -1,0 +1,4 @@
+.venv/
+wallet.json
+__pycache__/
+*.pyc
