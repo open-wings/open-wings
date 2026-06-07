@@ -9,13 +9,16 @@ Check 2 (slice 4) — Allowlist + temporal: the issuer did:key must be in the
   [valid_from, valid_until] window (null valid_until = still active). Trust is
   time-relative: a credential issued while the CFI was trusted stays valid even
   after valid_until has passed or the CFI is removed.
+Check 3 (slice 5) — FAA cross-check: the CFI's name + certificate number match
+  an active CFI in FAA airmen data (stubbed in faa.check_faa for now).
+
+Trust only if all three pass; each result is shown.
 
 Usage:
   python3 verify.py <sd_jwt> [--allowlist allowlist.json]
   python3 verify.py                (reads SD-JWT from stdin)
 
 Exits 0 if all checks pass, 1 otherwise.
-(The FAA cross-check comes in a later slice.)
 """
 
 import argparse
@@ -28,6 +31,8 @@ from typing import Optional
 import base58
 import jwt as pyjwt
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+from faa import check_faa
 
 _ED25519_MULTICODEC = bytes([0xED, 0x01])
 DEFAULT_ALLOWLIST_PATH = Path("allowlist.json")
@@ -131,8 +136,9 @@ def main() -> None:
     print(f"[1] Signature         : {'PASS' if sig_ok else 'FAIL'}")
     print(f"    {sig_msg}")
 
-    # Check 2 — allowlist + temporal. Only meaningful once the signature is
-    # trusted, so it is skipped (and counts as not passing) if check 1 fails.
+    # Checks 2 and 3 rely on the credential's claims being authentic, so they
+    # are only meaningful once the signature is trusted; they are skipped (and
+    # count as not passing) if check 1 fails.
     if sig_ok:
         try:
             allowlist = json.loads(Path(args.allowlist).read_text())
@@ -143,13 +149,18 @@ def main() -> None:
         allow_ok, allow_msg = check_allowlist_temporal(claims, allowlist)
         print(f"[2] Allowlist+temporal: {'PASS' if allow_ok else 'FAIL'}")
         print(f"    {allow_msg}")
-    else:
-        allow_ok = False
-        print(f"[2] Allowlist+temporal: SKIPPED (signature did not pass)")
 
-    all_pass = sig_ok and allow_ok
+        faa_ok, faa_msg = check_faa(claims.get("cfi_name"), claims.get("cfi_faa_cert"))
+        print(f"[3] FAA cross-check   : {'PASS' if faa_ok else 'FAIL'}")
+        print(f"    {faa_msg}")
+    else:
+        allow_ok = faa_ok = False
+        print(f"[2] Allowlist+temporal: SKIPPED (signature did not pass)")
+        print(f"[3] FAA cross-check   : SKIPPED (signature did not pass)")
+
+    all_pass = sig_ok and allow_ok and faa_ok
     print()
-    print(f"RESULT: {'TRUSTED' if all_pass else 'REJECTED'}  (slice 4: 2 of 2 checks; FAA check still to come)")
+    print(f"RESULT: {'TRUSTED' if all_pass else 'REJECTED'}  (3 of 3 checks)")
 
     if claims:
         print()
