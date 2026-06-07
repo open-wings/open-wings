@@ -116,6 +116,47 @@ def check_allowlist_temporal(claims: dict, allowlist: dict) -> tuple[bool, str]:
     return True, f"Issuer allowlisted; issue_date {issue_date} within window {window}"
 
 
+def verify_credential(sd_jwt: str, allowlist_path: str = str(DEFAULT_ALLOWLIST_PATH)) -> dict:
+    """Run all three checks in order and return a structured result.
+
+    This is the single source of truth for the verification decision; both the
+    CLI (main) and the web app call it so the checks are never reimplemented.
+
+    Returns:
+      {
+        "checks": [ {"name", "status": "pass"|"fail"|"skip", "message"}, ... ],
+        "trusted": bool,        # True only if all three checks passed
+        "claims": dict | None,  # authentic claims, present once signature passes
+      }
+    """
+    checks = []
+
+    # Check 1 — signature.
+    sig_ok, sig_msg, claims = check_signature(sd_jwt)
+    checks.append({"name": "Signature", "status": "pass" if sig_ok else "fail", "message": sig_msg})
+
+    # Checks 2 and 3 rely on the credential's claims being authentic, so they
+    # are only meaningful once the signature is trusted; they are skipped (and
+    # count as not passing) if check 1 fails.
+    if sig_ok:
+        try:
+            allowlist = json.loads(Path(allowlist_path).read_text())
+            allow_ok, allow_msg = check_allowlist_temporal(claims, allowlist)
+        except FileNotFoundError:
+            allow_ok, allow_msg = False, f"Allowlist file not found: {allowlist_path}"
+        checks.append({"name": "Allowlist + temporal", "status": "pass" if allow_ok else "fail", "message": allow_msg})
+
+        faa_ok, faa_msg = check_faa(claims.get("cfi_name"), claims.get("cfi_faa_cert"))
+        checks.append({"name": "FAA cross-check", "status": "pass" if faa_ok else "fail", "message": faa_msg})
+    else:
+        skip_msg = "Skipped (signature did not pass)"
+        checks.append({"name": "Allowlist + temporal", "status": "skip", "message": skip_msg})
+        checks.append({"name": "FAA cross-check", "status": "skip", "message": skip_msg})
+
+    trusted = all(c["status"] == "pass" for c in checks)
+    return {"checks": checks, "trusted": trusted, "claims": claims}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Verify a ClubAircraftCheckout SD-JWT VC")
     parser.add_argument("sd_jwt", nargs="?", help="SD-JWT VC string (or pass on stdin)")
@@ -131,43 +172,22 @@ def main() -> None:
         print("No SD-JWT provided.")
         sys.exit(1)
 
-    # Check 1 — signature.
-    sig_ok, sig_msg, claims = check_signature(sd_jwt)
-    print(f"[1] Signature         : {'PASS' if sig_ok else 'FAIL'}")
-    print(f"    {sig_msg}")
+    result = verify_credential(sd_jwt, args.allowlist)
 
-    # Checks 2 and 3 rely on the credential's claims being authentic, so they
-    # are only meaningful once the signature is trusted; they are skipped (and
-    # count as not passing) if check 1 fails.
-    if sig_ok:
-        try:
-            allowlist = json.loads(Path(args.allowlist).read_text())
-        except FileNotFoundError:
-            print(f"[2] Allowlist+temporal: FAIL")
-            print(f"    Allowlist file not found: {args.allowlist}")
-            sys.exit(1)
-        allow_ok, allow_msg = check_allowlist_temporal(claims, allowlist)
-        print(f"[2] Allowlist+temporal: {'PASS' if allow_ok else 'FAIL'}")
-        print(f"    {allow_msg}")
+    _status_label = {"pass": "PASS", "fail": "FAIL", "skip": "SKIPPED"}
+    for i, c in enumerate(result["checks"], 1):
+        print(f"[{i}] {c['name']:<20}: {_status_label[c['status']]}")
+        print(f"    {c['message']}")
 
-        faa_ok, faa_msg = check_faa(claims.get("cfi_name"), claims.get("cfi_faa_cert"))
-        print(f"[3] FAA cross-check   : {'PASS' if faa_ok else 'FAIL'}")
-        print(f"    {faa_msg}")
-    else:
-        allow_ok = faa_ok = False
-        print(f"[2] Allowlist+temporal: SKIPPED (signature did not pass)")
-        print(f"[3] FAA cross-check   : SKIPPED (signature did not pass)")
-
-    all_pass = sig_ok and allow_ok and faa_ok
     print()
-    print(f"RESULT: {'TRUSTED' if all_pass else 'REJECTED'}  (3 of 3 checks)")
+    print(f"RESULT: {'TRUSTED' if result['trusted'] else 'REJECTED'}  (3 of 3 checks)")
 
-    if claims:
+    if result["claims"]:
         print()
         print("Claims:")
-        print(json.dumps(claims, indent=2))
+        print(json.dumps(result["claims"], indent=2))
 
-    sys.exit(0 if all_pass else 1)
+    sys.exit(0 if result["trusted"] else 1)
 
 
 if __name__ == "__main__":
