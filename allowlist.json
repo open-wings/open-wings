@@ -1,0 +1,11 @@
+{
+  "trusted_issuers": [
+    {
+      "did": "did:key:z6MkmJb85Ckh2f6CgnXcPHz8mQ6VsSHyhfHVSHzHrNJiZ8W8",
+      "name": "Jane Smith",
+      "faa_cert": "1234567",
+      "valid_from": "2020-01-01",
+      "valid_until": null
+    }
+  ]
+}

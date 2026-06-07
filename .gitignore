@@ -1,4 +1,5 @@
 .venv/
 wallet.json
+cfi_key.json
 __pycache__/
 *.pyc
