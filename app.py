@@ -62,19 +62,28 @@ PAGE = """
     button { margin-top: 16px; background: #111827; color: #fff; border: 0; border-radius: 8px;
              padding: 12px 22px; font-size: 1rem; font-weight: 600; cursor: pointer; }
     button:hover { background: #000; }
-    .verdict { border-radius: 12px; padding: 22px; text-align: center; color: #fff;
-               font-size: 1.6rem; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 20px; }
-    .verdict.trusted { background: var(--green); }
-    .verdict.rejected { background: var(--red); }
-    .verdict small { display: block; font-size: 0.85rem; font-weight: 500; opacity: 0.9; margin-top: 4px;
-                     letter-spacing: 0; }
-    .check { display: flex; gap: 14px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+    .verdict { border-radius: 14px; padding: 28px 22px; text-align: center; color: #fff;
+               margin-bottom: 20px; border: 3px solid transparent; }
+    .verdict-icon { font-size: 2.8rem; line-height: 1; margin-bottom: 6px; }
+    .verdict-word { font-size: 2.3rem; font-weight: 800; letter-spacing: 1.5px; }
+    .verdict.trusted { background: var(--green); border-color: #0f5c27; }
+    .verdict.rejected { background: var(--red); border-color: #7a1610;
+                        box-shadow: 0 0 0 4px rgba(180,35,24,0.25);
+                        animation: pulse-red 1.2s ease-in-out infinite; }
+    @keyframes pulse-red { 0%,100% { box-shadow: 0 0 0 4px rgba(180,35,24,0.30); }
+                           50% { box-shadow: 0 0 0 12px rgba(180,35,24,0.08); } }
+    @media (prefers-reduced-motion: reduce) { .verdict.rejected { animation: none; } }
+    .verdict small { display: block; font-size: 0.95rem; font-weight: 600; opacity: 0.95; margin-top: 8px;
+                     letter-spacing: 0.3px; text-transform: uppercase; }
+    .check { display: flex; gap: 14px; padding: 14px 12px; border-bottom: 1px solid var(--line); }
     .check:last-child { border-bottom: 0; }
+    .check.fail { background: #fef2f2; box-shadow: inset 4px 0 0 var(--red); border-radius: 6px; }
     .icon { font-size: 1.3rem; line-height: 1.4; width: 24px; text-align: center; flex-shrink: 0; }
     .pass .icon { color: var(--green); }
     .fail .icon { color: var(--red); }
     .skip .icon { color: var(--grey); }
     .check .name { font-weight: 600; }
+    .check.fail .name { color: var(--red); }
     .check .help { color: var(--grey); font-size: 0.9rem; margin: 2px 0 4px; }
     .check .msg { font-size: 0.85rem; color: #374151; font-family: ui-monospace, monospace;
                   word-break: break-word; }
@@ -95,8 +104,9 @@ PAGE = """
 
   {% if result %}
     <div class="verdict {{ 'trusted' if result.trusted else 'rejected' }}">
-      {{ 'TRUSTED' if result.trusted else 'REJECTED' }}
-      <small>{{ 'All three checks passed.' if result.trusted else 'One or more checks did not pass — do not accept this credential.' }}</small>
+      <div class="verdict-icon">{{ '✅' if result.trusted else '⛔' }}</div>
+      <div class="verdict-word">{{ 'TRUSTED' if result.trusted else 'REJECTED' }}</div>
+      <small>{{ 'All three checks passed.' if result.trusted else 'Do not accept this credential' }}</small>
     </div>
 
     <div class="card">
