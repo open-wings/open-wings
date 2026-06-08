@@ -82,6 +82,12 @@ def main() -> None:
         default=date.today().isoformat(),
         help="issue_date as YYYY-MM-DD (default: today). Useful for testing temporal rules.",
     )
+    parser.add_argument("--cfi-name", default="Jane Smith", help="CFI name claim.")
+    parser.add_argument(
+        "--cfi-cert",
+        default="1234567",
+        help="CFI's FAA airman ID claim (matched against the FAA airmen database).",
+    )
     args = parser.parse_args()
 
     cfi_key, cfi_did = load_or_create_cfi_key(Path(args.cfi_key))
@@ -99,8 +105,8 @@ def main() -> None:
         "iss": cfi_did,
         "sub": pilot_did,
         "iat": int(time.time()),
-        "cfi_name": "Jane Smith",
-        "cfi_faa_cert": "1234567",
+        "cfi_name": args.cfi_name,
+        "cfi_faa_cert": args.cfi_cert,
         "pilot_name": "John Doe",
         "aircraft": "N12345",
         "club_id": "BVAC",

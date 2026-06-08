@@ -2,5 +2,6 @@
 wallet.json
 cfi_key.json
 .claude/
+faa_data/
 __pycache__/
 *.pyc
